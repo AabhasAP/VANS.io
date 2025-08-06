@@ -1,47 +1,39 @@
 FROM python:3.12-slim
 
+# Set working directory
 WORKDIR /app
 
-
-# Bad
-RUN apt-get update
-RUN apt-get install -y nodejs
-
-# Better
-RUN apt-get update && apt-get install -y nodejs
-
-
-
-
-
-
-
-# --- OS & Core Dependencies ---
+# Install OS dependencies
 RUN apt-get update && apt-get install -y \
-    git \
-    golang-go \
-    gcc \
-    libffi-dev \
-    libssl-dev \
-    build-essential \
-    curl \
-    wget \
-    unzip \
-    nmap \
-    dnsutils \
+    git golang-go gcc libffi-dev libssl-dev build-essential \
+    curl wget unzip nmap dnsutils nodejs npm \
     && rm -rf /var/lib/apt/lists/*
 
-# --- Copy Files ---
-COPY requirements.txt requirements.txt
-COPY .env .env
-COPY ./core /app/core
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# --- Install gau ---
+# Install gau (Go-based tool)
 RUN go install github.com/lc/gau/v2/cmd/gau@latest
 ENV PATH="/root/go/bin:$PATH"
 
-# --- Install Python Packages ---
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy backend code
+COPY .env .env
+COPY ./core /app/core
+COPY ./modules /app/modules
+COPY ./api /app/api
 
-# --- Expose & Start API ---
+# Build React frontend
+COPY ./frontend /app/frontend
+WORKDIR /app/frontend
+
+RUN npm install && npm run build
+
+# Move frontend build output into FastAPI static serving dir
+RUN mkdir -p /app/core/static && cp -r build/* /app/core/static/
+
+# Return to root app directory
+WORKDIR /app
+
+# Run FastAPI (will serve static files from /core/static)
 CMD ["uvicorn", "core.main:app", "--host", "0.0.0.0", "--port", "8000"]
