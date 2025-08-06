@@ -27,7 +27,10 @@ COPY ./api /app/api
 COPY ./frontend /app/frontend
 WORKDIR /app/frontend
 
-RUN npm install && npm run build
+# Install Node.js (clean version instead of Debian's buggy one)
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g npm@latest
 
 # Move frontend build output into FastAPI static serving dir
 RUN mkdir -p /app/core/static && cp -r build/* /app/core/static/
